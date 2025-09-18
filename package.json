@@ -1,0 +1,45 @@
+{
+  "name": "score-engine",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma migrate deploy && next build",
+    "start": "next start",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "next": "14.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24",
+    "prisma": "^5.6.0",
+    "@prisma/client": "^5.6.0",
+    "@clerk/nextjs": "^5.0.0",
+    "@upstash/redis": "^1.19.4",
+    "@upstash/ratelimit": "^1.1.4",
+    "openai": "^4.0.0",
+    "zod": "^3.22.2",
+    "cheerio": "^1.0.0-rc.12",
+    "node-fetch": "^3.3.2",
+    "clsx": "^1.2.1",
+    "@radix-ui/react-select": "^1.0.0",
+    "@radix-ui/react-dialog": "^1.0.0",
+    "@radix-ui/react-popover": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.1.3",
+    "@types/react": "^18.2.0",
+    "@types/node": "^20.5.0"
+  },
+  "description": "**ScoreEngine** is an opinionated starter kit for building an AI‑powered outreach tool for agency sales teams. It turns a prospect’s site URL and a chosen service angle into a personalized cold email in seconds. The project is built on the modern [Next.js](https://nextjs.org/) App Router, uses [Prisma](https://prisma.io/) for data access, [Clerk](https://clerk.com/) for authentication, [OpenAI](https://openai.com/) for text generation, [Lemon Squeezy](https://www.lemonsqueezy.com/) for billing, [Upstash](https://upstash.com/) for rate limiting, and [Tailwind](https://tailwindcss.com/) with a custom “Liquid Glass” theme for the UI.",
+  "main": "postcss.config.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

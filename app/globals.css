@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles */
+body {
+  @apply bg-neutral-dark text-neutral-light font-sans antialiased;
+}
+
+/* Liquid Glass helper class. Use this on containers that need a
+   blurred glass effect. */
+.glass {
+  @apply bg-neutral-dark/50 backdrop-blur-lg border border-neutral-dark/30 rounded-xl shadow-sm;
+}

@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id          String        @id @default(uuid())
+  email       String        @unique
+  name        String?
+  trialEndsAt DateTime?
+  credits     Int           @default(0)
+  locale      String        @default("en")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  audits      Audit[]
+  events      Event[]
+  subscriptions Subscription[]
+  invoices    Invoice[]
+  @@map("users")
+}
+
+model Audit {
+  id           String       @id @default(uuid())
+  userId       String
+  url          String
+  serviceAngle ServiceAngle
+  inputLocale  String
+  recentUpdate String?
+  resultJson   Json
+  score        Int?
+  bucket       String?
+  createdAt    DateTime     @default(now())
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("audits")
+}
+
+enum ServiceAngle {
+  ADS
+  APPS_INTEGRATIONS_AUTOMATION
+  BRANDING
+  COPYWRITING
+  ECOM_OPTIMIZATION
+  EMAIL_MARKETING
+  FUNNELS
+  GROWTH_MARKETING
+  OPTIN_FORMS
+  SEO
+  WEB_UI
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  meta      Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("events")
+}
+
+model Subscription {
+  id              String    @id @default(uuid())
+  userId          String
+  lszCustomerId   String?
+  lszSubId        String?
+  status          String?
+  currentPeriodEnd DateTime?
+  plan            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id           String   @id @default(uuid())
+  userId       String
+  lszInvoiceId String   @unique
+  amountCents  Int
+  currency     String   @default("USD")
+  type         String
+  meta         Json?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("invoices")
+}
+
+model WebhookLog {
+  id        String   @id @default(uuid())
+  source    String
+  payload   Json
+  status    Int
+  createdAt DateTime @default(now())
+  @@map("webhook_logs")
+}
