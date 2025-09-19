@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { OpenAI } from 'openai';
+import OpenAI from 'openai';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 // Define the expected JSON schema for the AI output using Zod. This mirrors the
 // schema described in the prompt and is used to validate the response. The
@@ -142,29 +143,25 @@ export async function generateEmail({
     };
     return dummy;
   }
-  // Build the user prompt. We include the URL, service and optional
-  // recentUpdate. The AI model sees these details alongside the system
-  // prompt and must produce valid JSON conforming to our schema.
-  const userPromptParts = [];
+
+  // Build the user prompt. We include the URL, service and optional recentUpdate.
+  const userPromptParts: string[] = [];
   userPromptParts.push(`URL: ${url}`);
   userPromptParts.push(`SERVICE: ${serviceAngle}`);
-  if (recentUpdate) {
-    userPromptParts.push(`RECENT_UPDATE: ${recentUpdate}`);
-  }
-  if (locale) {
-    userPromptParts.push(`LOCALE: ${locale}`);
-  }
-  if (tone) {
-    userPromptParts.push(`TONE: ${tone}`);
-  }
+  if (recentUpdate) userPromptParts.push(`RECENT_UPDATE: ${recentUpdate}`);
+  if (locale) userPromptParts.push(`LOCALE: ${locale}`);
+  if (tone) userPromptParts.push(`TONE: ${tone}`);
   const userPrompt = userPromptParts.join('\n');
 
-  const messages = [
+  // ✅ Type messages for the OpenAI SDK v4
+  const messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ];
+
   const openai = getOpenAI();
   let attempts = 0;
+
   while (attempts < 2) {
     attempts++;
     try {
@@ -173,28 +170,27 @@ export async function generateEmail({
         messages,
         temperature: 0.7,
         max_tokens: 800,
-        response_format: { type: 'json_object' },
+        response_format: { type: 'json_object' as const },
       });
+
       const text = completion.choices[0]?.message?.content ?? '';
       const parsed = JSON.parse(text);
       const validated = EmailResponseSchema.parse(parsed);
+
       // Additional checks outside of Zod
       const wc = validated.fullEmail.split(/\s+/).filter(Boolean).length;
-      if (wc < 85 || wc > 130) {
-        throw new Error('fullEmail out of range');
-      }
+      if (wc < 85 || wc > 130) throw new Error('fullEmail out of range');
       if (validated.quickWins.length < 2 || validated.quickWins.length > 3) {
         throw new Error('invalid number of quickWins');
       }
+
       return validated;
     } catch (err) {
-      if (attempts >= 2) {
-        throw err;
-      }
-      // On the first error, retry once. On subsequent errors the outer
-      // caller will handle rejection.
+      if (attempts >= 2) throw err;
+      // retry once
     }
   }
-  // This point should be unreachable, but TypeScript demands a return.
+
+  // Should be unreachable
   throw new Error('Failed to generate email');
 }

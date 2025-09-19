@@ -1,11 +1,5 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
-
 export default clerkMiddleware({
-  // Allow unauthenticated access to public pages and webhooks
-  publicRoutes: ['/', '/login', '/api/lsz/webhook', '/api/health'],
+  publicRoutes: ['/', '/api/health', '/api/lsz/webhook'],
 });
-
-export const config = {
-  // Protect everything except static files and Next internals
-  matcher: ['/((?!.*\\..*|_next).*)', '/'],
-};
+export const config = { matcher: ['/((?!.*\\..*|_next).*)', '/'] };
