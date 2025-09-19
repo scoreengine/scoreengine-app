@@ -2,15 +2,10 @@
 
 /*
   Dashboard page
-
-  This page is protected by Clerk via middleware. It fetches the current
-  user's credits and subscription status, allows them to submit a URL
-  and service angle for generation, and displays the result alongside
-  their recent audit history. Basic form validation and loading states
-  are handled client‑side.
+  (client component)
 */
+
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { SignedIn } from '@clerk/nextjs';
 import { clsx } from 'clsx';
 
@@ -29,11 +24,16 @@ interface AuditItem {
   serviceAngle: string;
 }
 
+type GenerationResult = {
+  subject: string;
+  fullEmail: string;
+};
+
 export default function Dashboard() {
   const [me, setMe] = useState<MeResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<any | null>(null);
+  const [result, setResult] = useState<GenerationResult | null>(null);
   const [history, setHistory] = useState<AuditItem[]>([]);
   const [form, setForm] = useState({
     url: '',
@@ -47,10 +47,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadMe() {
       const res = await fetch('/api/me');
-      if (res.ok) {
-        const data = await res.json();
-        setMe(data);
-      }
+      if (res.ok) setMe(await res.json());
     }
     loadMe();
   }, []);
@@ -101,8 +98,9 @@ export default function Dashboard() {
         const text = await res.text();
         throw new Error(text || 'Generation failed');
       }
-      const data = await res.json();
+      const data = (await res.json()) as GenerationResult;
       setResult(data);
+
       // Reload user and history after generating
       const [meRes, histRes] = await Promise.all([fetch('/api/me'), fetch('/api/audits')]);
       if (meRes.ok) setMe(await meRes.json());
@@ -111,7 +109,7 @@ export default function Dashboard() {
         setHistory(hist.items || []);
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message ?? 'Generation failed');
     } finally {
       setLoading(false);
     }
@@ -124,10 +122,15 @@ export default function Dashboard() {
     }
   }, [result]);
 
+  // ✅  bool strict pour disabled + styles
+  const isGenerateDisabled =
+    loading || !form.url || !form.serviceAngle || (!!me && me.credits <= 0);
+
   return (
     <SignedIn>
       <main className="max-w-4xl mx-auto p-4 flex flex-col gap-8">
         <h1 className="text-3xl font-bold">Dashboard</h1>
+
         {/* Credit status */}
         {me && (
           <div className="glass p-4 flex justify-between items-center">
@@ -149,6 +152,7 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
         {/* Form */}
         <div className="glass p-6">
           <h2 className="text-xl font-semibold mb-4">New Audit</h2>
@@ -158,62 +162,67 @@ export default function Dashboard() {
               <input
                 type="url"
                 value={form.url}
-                onChange={e => setForm({ ...form, url: e.target.value })}
+                onChange={(e) => setForm({ ...form, url: e.target.value })}
                 placeholder="https://example.com"
                 className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
               />
             </div>
+
             <div className="flex flex-col">
               <label className="mb-1">Service Angle</label>
               <select
                 value={form.serviceAngle}
-                onChange={e => setForm({ ...form, serviceAngle: e.target.value })}
+                onChange={(e) => setForm({ ...form, serviceAngle: e.target.value })}
                 className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
               >
                 <option value="">Select a service</option>
-                {serviceOptions.map(opt => (
+                {serviceOptions.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt}
                   </option>
                 ))}
               </select>
             </div>
+
             <div className="flex flex-col">
               <label className="mb-1">Recent update (optional)</label>
               <input
                 type="text"
                 value={form.recentUpdate}
-                onChange={e => setForm({ ...form, recentUpdate: e.target.value })}
+                onChange={(e) => setForm({ ...form, recentUpdate: e.target.value })}
                 placeholder="e.g. Launched new feature last week"
                 className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
               />
             </div>
+
             <div className="flex flex-col">
               <label className="mb-1">Locale</label>
               <select
                 value={form.locale}
-                onChange={e => setForm({ ...form, locale: e.target.value })}
+                onChange={(e) => setForm({ ...form, locale: e.target.value })}
                 className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
               >
                 <option value="en">English</option>
                 <option value="fr">Français</option>
               </select>
             </div>
+
             <button
-              disabled={loading || !form.url || !form.serviceAngle || (me && me.credits <= 0)}
+              disabled={isGenerateDisabled}
               onClick={handleGenerate}
               className={clsx(
                 'mt-2 w-full py-3 rounded-md text-neutral-dark font-semibold',
                 'bg-gradient-to-r from-ai-gradient-from to-ai-gradient-to',
-                (loading || !form.url || !form.serviceAngle || (me && me.credits <= 0)) &&
-                  'opacity-50 cursor-not-allowed'
+                isGenerateDisabled && 'opacity-50 cursor-not-allowed'
               )}
             >
               {loading ? 'Generating...' : 'Generate'}
             </button>
+
             {error && <p className="text-red-400 mt-2">{error}</p>}
           </div>
         </div>
+
         {/* Result */}
         {result && (
           <div className="glass p-6 space-y-4">
@@ -225,7 +234,7 @@ export default function Dashboard() {
             <div>
               <p className="font-semibold">Email</p>
               <pre className="whitespace-pre-wrap bg-neutral-dark/40 p-4 rounded-md">
-{result.fullEmail}
+                {result.fullEmail}
               </pre>
             </div>
             <button
@@ -236,12 +245,13 @@ export default function Dashboard() {
             </button>
           </div>
         )}
+
         {/* History */}
         <div className="glass p-6">
           <h2 className="text-xl font-semibold mb-4">Recent Audits</h2>
           {history.length === 0 && <p>No audits yet.</p>}
           <ul className="space-y-4">
-            {history.map(item => (
+            {history.map((item) => (
               <li key={item.id} className="border-b border-neutral-dark/30 pb-2">
                 <div className="flex justify-between items-center">
                   <div>

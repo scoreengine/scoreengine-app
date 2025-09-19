@@ -1,5 +1,6 @@
-import fetch from 'node-fetch';
-import cheerio from 'cheerio';
+// lib/siteScraper.ts
+// Next.js (Node runtime) expose déjà `fetch`, donc pas besoin de `node-fetch`.
+import { load } from 'cheerio';
 
 export interface SiteSignals {
   title?: string;
@@ -19,15 +20,16 @@ export interface SiteSignals {
 export async function scrapeSite(url: string, timeoutMs = 7000): Promise<SiteSignals> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: {
-        'User-Agent': 'ScoreEngineBot/1.0'
-      }
+      headers: { 'User-Agent': 'ScoreEngineBot/1.0' }
     });
+
     const html = await res.text();
-    const $ = cheerio.load(html);
+    const $ = load(html); // ⬅️ cheerio ESM: utiliser `load` importé
+
     const title = $('title').first().text().trim();
     const firstH1 = $('h1').first().text().trim();
 
@@ -41,6 +43,7 @@ export async function scrapeSite(url: string, timeoutMs = 7000): Promise<SiteSig
         cta = $(el).text().trim();
       }
     });
+
     // Determine if there's a pricing page link
     let hasPricingPage = false;
     $('a').each((_, el) => {
@@ -50,6 +53,7 @@ export async function scrapeSite(url: string, timeoutMs = 7000): Promise<SiteSig
         return false;
       }
     });
+
     // Signup form detection
     let hasSignupForm = false;
     $('input, form').each((_, el) => {
@@ -63,11 +67,20 @@ export async function scrapeSite(url: string, timeoutMs = 7000): Promise<SiteSig
         return false;
       }
     });
+
     // Calendar detection (e.g. Calendly)
     const htmlLower = html.toLowerCase();
-    const hasCalendar = htmlLower.includes('calendly') || htmlLower.includes('schedule') || htmlLower.includes('calendar');
+    const hasCalendar =
+      htmlLower.includes('calendly') ||
+      htmlLower.includes('schedule') ||
+      htmlLower.includes('calendar');
+
     // Proof row detection (testimonials, social proof)
-    const hasProofRow = htmlLower.includes('testimonial') || htmlLower.includes('customer') || htmlLower.includes('review');
+    const hasProofRow =
+      htmlLower.includes('testimonial') ||
+      htmlLower.includes('customer') ||
+      htmlLower.includes('review');
+
     return {
       title: title || undefined,
       firstH1: firstH1 || undefined,
@@ -77,7 +90,7 @@ export async function scrapeSite(url: string, timeoutMs = 7000): Promise<SiteSig
       hasCalendar,
       hasProofRow,
     };
-  } catch (err) {
+  } catch {
     // If the fetch failed or timed out, return an empty signal set
     return {};
   } finally {
