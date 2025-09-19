@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // App Router is the default in Next 14.
-  // Remove invalid experimental options.
-  experimental: {},
-  reactStrictMode: true
+  reactStrictMode: true,
+  // If you need custom headers or rewrites, add them here later.
 };
 
 export default nextConfig;
