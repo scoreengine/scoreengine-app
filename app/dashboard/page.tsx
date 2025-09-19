@@ -1,269 +1,124 @@
-/*
-  Dashboard page
-
-  This page is protected by Clerk via middleware. It fetches the current
-  user's credits and subscription status, allows them to submit a URL
-  and service angle for generation, and displays the result alongside
-  their recent audit history. Basic form validation and loading states
-  are handled client‑side.
-*/
-
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { SignedIn } from '@clerk/nextjs';
-import { clsx } from 'clsx';
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { SignedIn } from "@clerk/nextjs";
+import { clsx } from "clsx";
 
-interface MeResponse {
-  id: string;
-  email: string;
-  credits: number;
-  trialEndsAt?: string | null;
-  hasActiveSub: boolean;
-}
+type Angle =
+  | "Ads"
+  | "Apps, integrations & automation"
+  | "Branding"
+  | "Copywriting"
+  | "E-commerce optimization"
+  | "Email marketing"
+  | "Funnels"
+  | "Growth marketing"
+  | "Opt-in forms"
+  | "SEO"
+  | "Web design & UI";
 
-interface AuditItem {
-  id: string;
-  createdAt: string;
-  resultJson: any;
-  serviceAngle: string;
-}
-
-export default function Dashboard() {
-  const [me, setMe] = useState<MeResponse | null>(null);
+export default function DashboardPage() {
+  const router = useRouter();
+  const [url, setUrl] = useState("");
+  const [angle, setAngle] = useState<Angle>("Web design & UI");
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<any | null>(null);
-  const [history, setHistory] = useState<AuditItem[]>([]);
-  const [form, setForm] = useState({
-    url: '',
-    serviceAngle: '',
-    recentUpdate: '',
-    locale: 'en',
-    tone: '',
-  });
 
-  // Fetch current user info
-  useEffect(() => {
-    async function loadMe() {
-      const res = await fetch('/api/me');
-      if (res.ok) {
-        const data = await res.json();
-        setMe(data);
-      }
-    }
-    loadMe();
-  }, []);
-
-  // Load audit history
-  useEffect(() => {
-    async function loadHistory() {
-      const res = await fetch('/api/audits');
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data.items || []);
-      }
-    }
-    loadHistory();
-  }, []);
-
-  const serviceOptions = [
-    'Ads',
-    'Apps, integrations & automation',
-    'Branding',
-    'Copywriting',
-    'E-commerce optimization',
-    'Email marketing',
-    'Funnels',
-    'Growth marketing',
-    'Opt-in forms',
-    'SEO',
-    'Web design & UI',
-  ];
-
-  const handleGenerate = useCallback(async () => {
-    setLoading(true);
+  const generate = useCallback(async () => {
     setError(null);
+    setLoading(true);
     setResult(null);
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: form.url,
-          serviceAngle: form.serviceAngle,
-          recentUpdate: form.recentUpdate || undefined,
-          locale: form.locale,
-          tone: form.tone || undefined,
-        }),
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, angle }),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Generation failed');
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setResult(data);
-      // Reload user and history after generating
-      const [meRes, histRes] = await Promise.all([fetch('/api/me'), fetch('/api/audits')]);
-      if (meRes.ok) setMe(await meRes.json());
-      if (histRes.ok) {
-        const hist = await histRes.json();
-        setHistory(hist.items || []);
-      }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (e: any) {
+      setError(e?.message ?? "Something went wrong");
     } finally {
       setLoading(false);
     }
-  }, [form]);
-
-  const copyToClipboard = useCallback(() => {
-    if (result?.fullEmail) {
-      navigator.clipboard.writeText(result.fullEmail);
-      alert('Email copied to clipboard');
-    }
-  }, [result]);
+  }, [url, angle]);
 
   return (
     <SignedIn>
-      <main className="max-w-4xl mx-auto p-4 flex flex-col gap-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        {/* Credit status */}
-        {me && (
-          <div className="glass p-4 flex justify-between items-center">
-            <div>
-              <p className="font-semibold">Credits: {me.credits}</p>
-              {me.trialEndsAt && (
-                <p className="text-sm text-neutral-light/70">
-                  Trial ends {new Date(me.trialEndsAt).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-            <div>
-              <a
-                href="/billing"
-                className="px-4 py-2 rounded-md bg-primary text-neutral-light hover:bg-primary/80"
-              >
-                Manage Billing
-              </a>
-            </div>
-          </div>
-        )}
-        {/* Form */}
-        <div className="glass p-6">
-          <h2 className="text-xl font-semibold mb-4">New Audit</h2>
-          <div className="space-y-4">
-            <div className="flex flex-col">
-              <label className="mb-1">Website URL</label>
-              <input
-                type="url"
-                value={form.url}
-                onChange={e => setForm({ ...form, url: e.target.value })}
-                placeholder="https://example.com"
-                className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
-              />
-            </div>
-            <div className="flex flex-col">
-              <label className="mb-1">Service Angle</label>
-              <select
-                value={form.serviceAngle}
-                onChange={e => setForm({ ...form, serviceAngle: e.target.value })}
-                className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
-              >
-                <option value="">Select a service</option>
-                {serviceOptions.map(opt => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label className="mb-1">Recent update (optional)</label>
-              <input
-                type="text"
-                value={form.recentUpdate}
-                onChange={e => setForm({ ...form, recentUpdate: e.target.value })}
-                placeholder="e.g. Launched new feature last week"
-                className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
-              />
-            </div>
-            <div className="flex flex-col">
-              <label className="mb-1">Locale</label>
-              <select
-                value={form.locale}
-                onChange={e => setForm({ ...form, locale: e.target.value })}
-                className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
-              >
-                <option value="en">English</option>
-                <option value="fr">Français</option>
-              </select>
-            </div>
-            <button
-              disabled={loading || !form.url || !form.serviceAngle || (me && me.credits <= 0)}
-              onClick={handleGenerate}
-              className={clsx(
-                'mt-2 w-full py-3 rounded-md text-neutral-dark font-semibold',
-                'bg-gradient-to-r from-ai-gradient-from to-ai-gradient-to',
-                (loading || !form.url || !form.serviceAngle || (me && me.credits <= 0)) &&
-                  'opacity-50 cursor-not-allowed'
-              )}
-            >
-              {loading ? 'Generating...' : 'Generate'}
-            </button>
-            {error && <p className="text-red-400 mt-2">{error}</p>}
-          </div>
-        </div>
-        {/* Result */}
-        {result && (
-          <div className="glass p-6 space-y-4">
-            <h2 className="text-xl font-semibold">Result</h2>
-            <div>
-              <p className="font-semibold">Subject</p>
-              <p>{result.subject}</p>
-            </div>
-            <div>
-              <p className="font-semibold">Email</p>
-              <pre className="whitespace-pre-wrap bg-neutral-dark/40 p-4 rounded-md">
-{result.fullEmail}
-              </pre>
-            </div>
-            <button
-              onClick={copyToClipboard}
-              className="px-4 py-2 bg-secondary text-neutral-light rounded-md hover:bg-secondary/80"
-            >
-              Copy Email
-            </button>
-          </div>
-        )}
-        {/* History */}
-        <div className="glass p-6">
-          <h2 className="text-xl font-semibold mb-4">Recent Audits</h2>
-          {history.length === 0 && <p>No audits yet.</p>}
-          <ul className="space-y-4">
-            {history.map(item => (
-              <li key={item.id} className="border-b border-neutral-dark/30 pb-2">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold">{item.resultJson?.subject || 'Untitled'}</p>
-                    <p className="text-sm text-neutral-light/70">
-                      {new Date(item.createdAt).toLocaleString()} • {item.serviceAngle}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(item.resultJson?.fullEmail || '');
-                    }}
-                    className="text-primary hover:underline"
-                  >
-                    Copy
-                  </button>
-                </div>
-              </li>
+      <main className="mx-auto max-w-3xl p-6">
+        <h1 className="text-2xl font-semibold">ScoreEngine</h1>
+        <p className="mt-2 opacity-80">
+          Paste a prospect URL, choose your service angle, and generate a
+          proof-backed intro email.
+        </p>
+
+        <div className="mt-6 space-y-3 rounded-xl border p-4 bg-white/60">
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://prospect.com"
+            className="w-full rounded-lg border px-3 py-2"
+          />
+          <select
+            value={angle}
+            onChange={(e) => setAngle(e.target.value as Angle)}
+            className="w-full rounded-lg border px-3 py-2"
+          >
+            {[
+              "Ads",
+              "Apps, integrations & automation",
+              "Branding",
+              "Copywriting",
+              "E-commerce optimization",
+              "Email marketing",
+              "Funnels",
+              "Growth marketing",
+              "Opt-in forms",
+              "SEO",
+              "Web design & UI",
+            ].map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
             ))}
-          </ul>
+          </select>
+
+          <button
+            onClick={generate}
+            disabled={loading || !url}
+            className={clsx(
+              "w-full rounded-lg px-4 py-2 text-white",
+              loading ? "opacity-70" : "opacity-100"
+            )}
+            style={{ background: "linear-gradient(90deg,#316bff,#ff9aff)" }}
+          >
+            {loading ? "Generating…" : "Generate"}
+          </button>
         </div>
+
+        {error && (
+          <p className="mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-red-700">
+            {error}
+          </p>
+        )}
+
+        {result && (
+          <div className="mt-6 space-y-3 rounded-xl border p-4 bg-white/60">
+            <h2 className="text-lg font-semibold">Result</h2>
+            <pre className="whitespace-pre-wrap text-sm">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+            <button
+              onClick={() => navigator.clipboard.writeText(result.email ?? "")}
+              className="rounded-lg border px-3 py-2"
+            >
+              Copy email
+            </button>
+          </div>
+        )}
       </main>
     </SignedIn>
   );
