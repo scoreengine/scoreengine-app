@@ -6,6 +6,14 @@ import { generateEmail } from '@/lib/openai';
 import { scrapeSite } from '@/lib/siteScraper';
 import { upsertUser } from '@/lib/user';
 
+// ✅ utilitaire de normalisation
+function normalizeUrl(url: string): string {
+  if (!/^https?:\/\//i.test(url)) {
+    return `https://${url}`;
+  }
+  return url;
+}
+
 function isValidUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -25,29 +33,38 @@ export async function POST(req: Request) {
   if (!userId) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
+
   // Apply rate limiting per user and per IP
   const ip = req.headers.get('x-forwarded-for') || 'unknown';
   const { success } = await rateLimit(`${userId}-${ip}`);
   if (!success) {
     return new NextResponse('Too many requests', { status: 429 });
   }
+
   let body: any;
   try {
     body = await req.json();
   } catch {
     return new NextResponse('Invalid JSON body', { status: 400 });
   }
-  const { url, serviceAngle, recentUpdate, locale, tone } = body || {};
+
+  // ✅ normaliser d’abord
+  const rawUrl = body.url;
+  const url = rawUrl ? normalizeUrl(rawUrl) : '';
+  const { serviceAngle, recentUpdate, locale, tone } = body || {};
+
   if (!url || typeof url !== 'string' || !isValidUrl(url)) {
     return new NextResponse('Invalid URL', { status: 400 });
   }
   if (!serviceAngle || typeof serviceAngle !== 'string') {
     return new NextResponse('Service angle is required', { status: 400 });
   }
+
   // Upsert user in DB to ensure we have a record
   const clerkUser = await currentUser();
   const email = clerkUser?.emailAddresses[0]?.emailAddress || '';
   await upsertUser({ userId, email, name: clerkUser?.firstName || '' });
+
   const dbUser = await prisma.user.findUnique({
     where: { id: userId },
     include: { subscriptions: true },
@@ -55,6 +72,7 @@ export async function POST(req: Request) {
   if (!dbUser) {
     return new NextResponse('User not found', { status: 404 });
   }
+
   // Check credits/trial/subscription
   const now = new Date();
   const trialActive = dbUser.trialEndsAt && dbUser.trialEndsAt > now;
@@ -67,23 +85,25 @@ export async function POST(req: Request) {
   if (dbUser.credits <= 0 && !trialActive && !activeSub) {
     return new NextResponse('Insufficient credits', { status: 402 });
   }
+
   // Scrape site signals
   const signals = await scrapeSite(url);
+
   try {
     const result = await generateEmail({ url, serviceAngle, recentUpdate, locale, tone });
+
     // Record audit in DB
     await prisma.audit.create({
       data: {
         userId,
         url,
-        serviceAngle: serviceAngle
-          .replace(/\s+/g, '_')
-          .toUpperCase() as any,
+        serviceAngle: serviceAngle.replace(/\s+/g, '_').toUpperCase() as any,
         inputLocale: locale || 'en',
         recentUpdate: recentUpdate || null,
         resultJson: result,
       },
     });
+
     // Decrement credits if applicable
     if (!trialActive || activeSub) {
       await prisma.user.update({
@@ -91,6 +111,7 @@ export async function POST(req: Request) {
         data: { credits: { decrement: 1 } },
       });
     }
+
     // Log event
     await prisma.event.create({
       data: {
@@ -99,6 +120,7 @@ export async function POST(req: Request) {
         meta: { url, serviceAngle },
       },
     });
+
     return NextResponse.json(result);
   } catch (err: any) {
     return new NextResponse('Generation failed: ' + err.message, { status: 500 });

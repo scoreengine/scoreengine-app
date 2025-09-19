@@ -29,6 +29,14 @@ type GenerationResult = {
   fullEmail: string;
 };
 
+// ✅ Helper pour normaliser les URLs
+function normalizeUrl(url: string) {
+  if (!/^https?:\/\//i.test(url)) {
+    return `https://${url}`;
+  }
+  return url;
+}
+
 export default function Dashboard() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -87,7 +95,7 @@ export default function Dashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: form.url,
+          url: normalizeUrl(form.url), // ✅ Normalisation ici
           serviceAngle: form.serviceAngle,
           recentUpdate: form.recentUpdate || undefined,
           locale: form.locale,
@@ -122,7 +130,6 @@ export default function Dashboard() {
     }
   }, [result]);
 
-  // ✅  bool strict pour disabled + styles
   const isGenerateDisabled =
     loading || !form.url || !form.serviceAngle || (!!me && me.credits <= 0);
 
@@ -163,7 +170,7 @@ export default function Dashboard() {
                 type="url"
                 value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
-                placeholder="https://example.com"
+                placeholder="example.com or https://example.com"
                 className="p-2 rounded-md bg-neutral-dark/60 border border-neutral-dark/30 focus:outline-none"
               />
             </div>
