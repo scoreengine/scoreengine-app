@@ -10,7 +10,7 @@ datasource db {
 
 model User {
   id          String        @id @default(uuid())
-  email       String        @unique
+  email       String?       // plus de contrainte @unique, nullable si jamais Clerk n’envoie rien
   name        String?
   trialEndsAt DateTime?
   credits     Int           @default(0)
