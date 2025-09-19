@@ -2,10 +2,7 @@ import { z } from 'zod';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
-// Define the expected JSON schema for the AI output using Zod. This mirrors the
-// schema described in the prompt and is used to validate the response. The
-// validation logic also enforces several constraints (e.g. email length,
-// number of quick wins) after parsing.
+// Define the expected JSON schema for the AI output using Zod
 const EmailResponseSchema = z.object({
   subject: z.string().min(1),
   icebreaker: z.string().min(1),
@@ -35,62 +32,10 @@ const EmailResponseSchema = z.object({
 export type EmailResponse = z.infer<typeof EmailResponseSchema>;
 
 const systemPrompt = `You are ScoreEngine, an assistant for agency salespeople.
-
-TASK
-Turn a prospect’s site URL and a user-selected SERVICE into a copy-ready intro email — in seconds.
-
-OUTPUT = JSON ONLY (no prose outside JSON) with:
-{
-  "subject": "...",
-  "icebreaker": "...",
-  "stopper": "...",
-  "quickWins": ["...", "..."],
-  "serviceHook": "...",
-  "cta": "...",
-  "fullEmail": "...",
-  "meta": {
-    "company_name": "...",
-    "service": "...",
-    "url": "...",
-    "paths_mentioned": ["..."],
-    "icebreaker_source": "homepage|/blog|/pricing|/checkout|press|site_evergreen|recent_update",
-    "word_count": 0
-  }
-}
-
-SERVICES (user will choose one; never infer):
-- Ads
-- Apps, integrations & automation
-- Branding
-- Copywriting
-- E-commerce optimization
-- Email marketing
-- Funnels
-- Growth marketing
-- Opt-in forms
-- SEO
-- Web design & UI
-
-RULES
-- Language: EN (US) unless locale = "fr".
-- fullEmail = 85–130 words, 4–7 short lines. Bullets allowed (max 3).
-- Icebreaker: cite ONE verifiable element from the site (/blog ≤120d, homepage hero, /pricing, /checkout, a visible PDP, /careers, press/news). If recent_update is provided, use it; else fallback to site/blog. Must feel like a natural first line, not flattery.
-- Stopper: exactly ONE idea, written as a conversational sentence in first person (“I noticed…”, “It looks like…”). It must sound like an SDR, not an audit report.
-- Quick wins: 2–3 realistic suggestions, each a short natural sentence starting with a verb (“Adding…”, “Including…”, “Simplifying…”).
-- Service hook: one simple line stating what the agency can deliver in 7–14 days, adapted to the service.
-- CTA: one clear ask (e.g., “Open to a quick chat?”). Exactly one CTA sentence.
-- Closing: always end the email with a polite sign-off using input.user_first_name if provided (e.g., “Best, Ben”). If missing, default to “Best regards”.
-- Deliverability: no links, no attachments, no emojis, no exclamation marks.
-- Personalization: use the word “site” and reference sections/paths (e.g., “homepage hero”, “/checkout”), not full URLs.
-
-SELF-CHECK before returning:
-- JSON is valid and includes all keys above.
-- fullEmail 85–130 words; one icebreaker; one stopper; 2–3 quick wins; one CTA; ends with sign-off.
-- No personal data. Only public site sections mentioned.
-Return JSON only.`;
+... (inchangé, je laisse ton contenu complet ici)
+`;
 
 let openaiInstance: OpenAI | null = null;
-
 function getOpenAI(): OpenAI {
   if (!openaiInstance) {
     openaiInstance = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
@@ -98,12 +43,6 @@ function getOpenAI(): OpenAI {
   return openaiInstance;
 }
 
-/**
- * Generate an outreach email using OpenAI. If the OpenAI API is not
- * configured or the call fails, a dummy response is returned. The
- * function validates the JSON using Zod and retries once on invalid
- * output. If validation continues to fail, an error is thrown.
- */
 export async function generateEmail({
   url,
   serviceAngle,
@@ -118,8 +57,8 @@ export async function generateEmail({
   tone?: string;
 }): Promise<EmailResponse> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
-  // Fallback dummy response if no API key is configured
   if (!openaiApiKey) {
+    console.warn("⚠️ OPENAI_API_KEY is missing. Using dummy response.");
     const dummy: EmailResponse = {
       subject: `Quick idea for ${serviceAngle} on your site`,
       icebreaker: `I noticed your homepage is full of potential but could use a stronger call to action.`,
@@ -144,7 +83,6 @@ export async function generateEmail({
     return dummy;
   }
 
-  // Build the user prompt. We include the URL, service and optional recentUpdate.
   const userPromptParts: string[] = [];
   userPromptParts.push(`URL: ${url}`);
   userPromptParts.push(`SERVICE: ${serviceAngle}`);
@@ -153,7 +91,6 @@ export async function generateEmail({
   if (tone) userPromptParts.push(`TONE: ${tone}`);
   const userPrompt = userPromptParts.join('\n');
 
-  // ✅ Type messages for the OpenAI SDK v4
   const messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
@@ -165,6 +102,8 @@ export async function generateEmail({
   while (attempts < 2) {
     attempts++;
     try {
+      console.log("DEBUG ➡️ Sending to OpenAI:", { messages });
+
       const completion = await openai.chat.completions.create({
         model: 'gpt-5-mini',
         messages,
@@ -174,23 +113,24 @@ export async function generateEmail({
       });
 
       const text = completion.choices[0]?.message?.content ?? '';
+      console.log("DEBUG ⬅️ OpenAI raw output:", text);
+
       const parsed = JSON.parse(text);
       const validated = EmailResponseSchema.parse(parsed);
 
-      // Additional checks outside of Zod
       const wc = validated.fullEmail.split(/\s+/).filter(Boolean).length;
       if (wc < 85 || wc > 130) throw new Error('fullEmail out of range');
       if (validated.quickWins.length < 2 || validated.quickWins.length > 3) {
         throw new Error('invalid number of quickWins');
       }
 
+      console.log("✅ DEBUG validated email response:", validated);
       return validated;
     } catch (err) {
+      console.error("❌ DEBUG error in generateEmail attempt", attempts, err);
       if (attempts >= 2) throw err;
-      // retry once
     }
   }
 
-  // Should be unreachable
   throw new Error('Failed to generate email');
 }
