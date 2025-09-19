@@ -7,6 +7,9 @@
   their recent audit history. Basic form validation and loading states
   are handled client‑side.
 */
+
+"use client";
+
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SignedIn } from '@clerk/nextjs';
