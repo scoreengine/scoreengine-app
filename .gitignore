@@ -1,0 +1,24 @@
+# dependencies
+/node_modules
+
+# build output
+/.next
+/out
+/build
+
+# misc
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# prisma sqlite db (si utilisé en local seulement)
+prisma/dev.db
